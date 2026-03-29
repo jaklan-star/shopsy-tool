@@ -15,21 +15,44 @@ const browser = await puppeteer.launch({
 headless: true,
 args: [
 "--no-sandbox",
-"--disable-setuid-sandbox"
+"--disable-setuid-sandbox",
+"--disable-dev-shm-usage"
 ]
 });
 
 const page = await browser.newPage();
 
-await page.goto(url, { waitUntil: "domcontentloaded" });
+let lastURL = "";
+let stableCount = 0;
 
-// Wait until Flipkart loads
-await page.waitForFunction(() => {
-return window.location.href.includes("flipkart.com");
-}, { timeout: 15000 }).catch(()=>{});
+page.on("framenavigated", frame => {
+if (frame === page.mainFrame()) {
+lastURL = frame.url();
+stableCount = 0;
+}
+});
 
-// Small delay for final redirect
-await page.waitForTimeout(2000);
+await page.goto(url, {
+waitUntil: "domcontentloaded",
+timeout: 60000
+});
+
+// Wait until URL stops changing
+for (let i = 0; i < 20; i++) {
+
+await new Promise(r => setTimeout(r, 1000));
+
+let currentURL = page.url();
+
+if (currentURL === lastURL) {
+stableCount++;
+} else {
+stableCount = 0;
+lastURL = currentURL;
+}
+
+if (stableCount >= 3) break;
+}
 
 let finalURL = page.url();
 
