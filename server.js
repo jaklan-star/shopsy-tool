@@ -6,44 +6,47 @@ const app = express();
 app.use(express.static(__dirname));
 
 app.get("/resolve", async (req, res) => {
-  let url = req.query.url;
 
-  try {
-    const browser = await puppeteer.launch({
-      headless: true,
-      args: [
-        "--no-sandbox",
-        "--disable-setuid-sandbox",
-        "--disable-dev-shm-usage",
-        "--disable-accelerated-2d-canvas",
-        "--no-first-run",
-        "--no-zygote",
-        "--single-process",
-        "--disable-gpu"
-      ]
-    });
+let url = req.query.url;
 
-    const page = await browser.newPage();
+try {
 
-    await page.goto(url, {
-      waitUntil: "networkidle2",
-      timeout: 60000
-    });
+const browser = await puppeteer.launch({
+headless: true,
+args: [
+"--no-sandbox",
+"--disable-setuid-sandbox"
+]
+});
 
-    const finalURL = page.url();
+const page = await browser.newPage();
 
-    await browser.close();
+await page.goto(url, { waitUntil: "domcontentloaded" });
 
-    res.json({ url: finalURL });
+// Wait until Flipkart loads
+await page.waitForFunction(() => {
+return window.location.href.includes("flipkart.com");
+}, { timeout: 15000 }).catch(()=>{});
 
-  } catch (error) {
-    console.log(error);
-    res.json({ url: url });
-  }
+// Small delay for final redirect
+await page.waitForTimeout(2000);
+
+let finalURL = page.url();
+
+await browser.close();
+
+res.json({ url: finalURL });
+
+} catch (error) {
+
+res.json({ url: url });
+
+}
+
 });
 
 const PORT = process.env.PORT || 3000;
 
 app.listen(PORT, () => {
-  console.log("Server running on port " + PORT);
+console.log("Server running");
 });
